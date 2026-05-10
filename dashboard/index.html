@@ -1,0 +1,388 @@
+<!--
+  Replace your existing dashboard/index.html with this version.
+  Adds an "AI Decisions" panel that shows the issue resolution agent's
+  reasoning trace — this is the demo moment for prospects.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supply Chain Agent Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #f1f5f9;
+            font-family: 'Inter', sans-serif;
+            padding: 1.5rem;
+            color: #0f172a;
+        }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header {
+            display: flex; justify-content: space-between; align-items: center;
+            flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;
+        }
+        h1 {
+            font-size: 1.8rem; font-weight: 700;
+            background: linear-gradient(135deg, #1e293b, #3b82f6);
+            background-clip: text; -webkit-background-clip: text; color: transparent;
+        }
+        .badge {
+            background: #e2e8f0; padding: 0.3rem 0.8rem; border-radius: 20px;
+            font-size: 0.8rem; font-weight: 500; color: #334155;
+        }
+        .badge.live {
+            background: #dcfce7; color: #166534;
+            display: inline-flex; align-items: center; gap: 0.4rem;
+        }
+        .badge.live::before {
+            content: ""; width: 8px; height: 8px; border-radius: 50%;
+            background: #22c55e; animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .refresh-btn {
+            background: white; border: 1px solid #cbd5e1;
+            padding: 0.5rem 1rem; border-radius: 40px;
+            font-weight: 500; cursor: pointer;
+        }
+        .refresh-btn:hover { background: #f8fafc; }
+        .last-update { font-size: 0.75rem; color: #475569; margin-bottom: 1rem; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 1.5rem; margin-bottom: 1.5rem;
+        }
+        .card {
+            background: white; border-radius: 24px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            border: 1px solid #e9eef3; overflow: hidden;
+        }
+        .card-header {
+            padding: 1rem 1.5rem; border-bottom: 1px solid #eef2f6; background: #fefefe;
+        }
+        .card-header h2 {
+            font-size: 1.25rem; font-weight: 600;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .card-body { padding: 1rem 1.5rem 1.5rem; }
+        .table-wrapper { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        th {
+            text-align: left; padding: 0.75rem 0.5rem 0.5rem 0;
+            font-weight: 600; color: #475569; border-bottom: 1px solid #e2e8f0;
+        }
+        td {
+            padding: 0.6rem 0.5rem; border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+        .status, .severity-low, .severity-medium, .severity-high, .severity-critical,
+        .action-tag {
+            display: inline-block; padding: 0.2rem 0.6rem; border-radius: 30px;
+            font-size: 0.7rem; font-weight: 600;
+        }
+        .status.received { background: #dbeafe; color: #1e40af; }
+        .status.delivered { background: #dcfce7; color: #166534; }
+        .status.approved { background: #dcfce7; color: #166534; }
+        .status.rejected { background: #fee2e2; color: #991b1b; }
+        .severity-critical { background: #fee2e2; color: #991b1b; }
+        .severity-high { background: #fed7aa; color: #9a3412; }
+        .severity-medium { background: #ffedd5; color: #9a3412; }
+        .severity-low { background: #e0e7ff; color: #3730a3; }
+        .action-tag.create_po_backup { background: #dcfce7; color: #166534; }
+        .action-tag.escalate_human { background: #fef3c7; color: #92400e; }
+        .action-tag.monitor { background: #e0e7ff; color: #3730a3; }
+        .action-tag.ignore { background: #f1f5f9; color: #475569; }
+
+        /* AI decisions panel — the wow moment */
+        .ai-card {
+            background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+            border: 1px solid #bae6fd;
+        }
+        .incident {
+            padding: 1rem; border: 1px solid #e0e7ff; border-radius: 16px;
+            margin-bottom: 0.75rem; background: white;
+        }
+        .incident-header {
+            display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;
+            margin-bottom: 0.5rem;
+        }
+        .incident-summary {
+            font-weight: 600; color: #1e293b; margin-bottom: 0.25rem;
+        }
+        .incident-reasoning {
+            font-size: 0.85rem; color: #475569; line-height: 1.5;
+            background: #f8fafc; padding: 0.6rem 0.8rem; border-radius: 10px;
+            border-left: 3px solid #3b82f6; margin-top: 0.5rem;
+        }
+        .incident-reasoning::before {
+            content: "🧠 AI reasoning: ";
+            font-weight: 600; color: #1e40af;
+        }
+        .incident-meta {
+            font-size: 0.7rem; color: #64748b; margin-top: 0.5rem;
+        }
+        .confidence {
+            display: inline-block; padding: 0.15rem 0.5rem;
+            background: #e0e7ff; color: #3730a3;
+            border-radius: 12px; font-weight: 600;
+        }
+
+        .form-card {
+            background: white; border-radius: 24px;
+            padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
+            border: 1px solid #e9eef3;
+        }
+        .form-row {
+            display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;
+        }
+        .form-group { flex: 1; min-width: 150px; }
+        .form-group label {
+            display: block; font-size: 0.7rem; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.5px;
+            color: #64748b; margin-bottom: 0.25rem;
+        }
+        .form-group input {
+            width: 100%; padding: 0.6rem 0.8rem;
+            border: 1px solid #cbd5e1; border-radius: 12px;
+            font-family: inherit; font-size: 0.9rem;
+        }
+        button.submit, button.secondary {
+            background: #3b82f6; border: none; padding: 0.6rem 1.4rem;
+            border-radius: 40px; font-weight: 600; color: white; cursor: pointer;
+        }
+        button.submit:hover { background: #2563eb; }
+        button.secondary { background: #ec4899; }
+        button.secondary:hover { background: #db2777; }
+        .toast {
+            position: fixed; bottom: 20px; right: 20px;
+            background: #1e293b; color: white;
+            padding: 0.6rem 1.2rem; border-radius: 40px;
+            font-size: 0.8rem; z-index: 1000; opacity: 0;
+            transition: opacity 0.2s; pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📦 Multi‑Agent Supply Chain</h1>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <span class="badge live">12 agents running</span>
+            <span class="badge">LangGraph · GPT-4o · Redis Streams</span>
+            <button class="refresh-btn" id="refreshBtn">⟳ Refresh</button>
+        </div>
+    </div>
+    <div class="last-update" id="lastUpdate">Updating...</div>
+
+    <div class="form-card">
+        <h3 style="margin-bottom: 0.75rem; font-weight: 600;">➕ Place new order / 🚨 trigger AI agent</h3>
+        <div class="form-row">
+            <div class="form-group">
+                <label>SKU</label>
+                <input type="text" id="sku" value="MFG-001">
+            </div>
+            <div class="form-group">
+                <label>Quantity</label>
+                <input type="number" id="qty" value="2" min="1">
+            </div>
+            <div class="form-group">
+                <label>Total value (₹)</label>
+                <input type="number" id="value" value="500" step="100">
+            </div>
+            <div class="form-group">
+                <label>Deadline</label>
+                <input type="date" id="deadline" value="2026-12-31">
+            </div>
+            <div class="form-group">
+                <label>Customer ID</label>
+                <input type="text" id="customerId" value="00000000-0000-0000-0000-000000000001" readonly style="background:#f1f5f9;">
+            </div>
+            <button class="submit" id="submitOrder">Create Order →</button>
+            <button class="secondary" id="fireAlert" title="Fires a stockout alert that the AI agent will reason about">🧠 Trigger AI agent</button>
+        </div>
+    </div>
+
+    <!-- AI Decisions panel — the demo moment -->
+    <div class="card ai-card" style="margin-bottom: 1.5rem;">
+        <div class="card-header">
+            <h2>🧠 AI agent decisions <span style="font-size:0.7rem;font-weight:400;color:#64748b;">— issue resolution agent reasoning trace</span></h2>
+        </div>
+        <div class="card-body">
+            <div id="incidents"><p style="color:#64748b;">No AI decisions yet. Click 🧠 Trigger AI agent above.</p></div>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <div class="card-header"><h2>📋 Recent orders</h2></div>
+            <div class="card-body">
+                <div class="table-wrapper">
+                    <table id="ordersTable">
+                        <thead><tr><th>Order ID</th><th>SKU</th><th>Qty</th><th>Value</th><th>Status</th><th>Time</th></tr></thead>
+                        <tbody><tr><td colspan="6">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header"><h2>📦 Inventory</h2></div>
+            <div class="card-body">
+                <div class="table-wrapper">
+                    <table id="inventoryTable">
+                        <thead><tr><th>SKU</th><th>On hand</th><th>Reserved</th><th>Reorder pt</th><th>Safety</th></tr></thead>
+                        <tbody><tr><td colspan="5">Loading...</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><h2>⚠️ Recent alerts (raw events)</h2></div>
+        <div class="card-body">
+            <div class="table-wrapper">
+                <table id="alertsTable">
+                    <thead><tr><th>Severity</th><th>Category</th><th>Message</th><th>Time</th></tr></thead>
+                    <tbody><tr><td colspan="4">Loading...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+    const API_BASE = '';
+
+    function showToast(msg, isError = false) {
+        const t = document.getElementById('toast');
+        t.textContent = (isError ? '❌ ' : '✅ ') + msg;
+        t.style.background = isError ? '#991b1b' : '#1e293b';
+        t.style.opacity = '1';
+        setTimeout(() => { t.style.opacity = '0'; }, 2500);
+    }
+
+    async function fetchIncidents() {
+        try {
+            const res = await fetch(`${API_BASE}/api/incidents?limit=10`);
+            const data = await res.json();
+            const el = document.getElementById('incidents');
+            if (!data.length) {
+                el.innerHTML = '<p style="color:#64748b;">No AI decisions yet. Click 🧠 Trigger AI agent above.</p>';
+                return;
+            }
+            el.innerHTML = data.map(i => `
+                <div class="incident">
+                    <div class="incident-header">
+                        <span class="severity-${i.severity}">${i.severity}</span>
+                        <span class="action-tag ${i.action_taken}">${i.action_taken.replace(/_/g, ' ')}</span>
+                        <span class="confidence">conf ${(i.confidence * 100).toFixed(0)}%</span>
+                        ${i.requires_human ? '<span class="severity-medium">human review</span>' : ''}
+                    </div>
+                    <div class="incident-summary">${i.summary}</div>
+                    <div class="incident-reasoning">${i.reasoning}</div>
+                    <div class="incident-meta">
+                        ${i.category} · ${new Date(i.created_at).toLocaleTimeString()}
+                    </div>
+                </div>
+            `).join('');
+        } catch (e) { console.error(e); }
+    }
+
+    async function fetchOrders() {
+        try {
+            const res = await fetch(`${API_BASE}/api/orders?limit=15`);
+            const orders = await res.json();
+            const tbody = document.querySelector('#ordersTable tbody');
+            if (!orders.length) { tbody.innerHTML = '<tr><td colspan="6">No orders yet</td></tr>'; return; }
+            tbody.innerHTML = orders.map(o => `
+                <tr>
+                    <td style="font-family: monospace;">${o.order_id.slice(0,8)}…</td>
+                    <td><strong>${o.sku}</strong></td>
+                    <td>${o.quantity}</td>
+                    <td>₹${Number(o.total_value).toLocaleString()}</td>
+                    <td><span class="status ${o.status}">${o.status}</span></td>
+                    <td style="font-size:0.7rem;">${new Date(o.created_at).toLocaleTimeString()}</td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error(e); }
+    }
+
+    async function fetchInventory() {
+        try {
+            const res = await fetch(`${API_BASE}/api/inventory`);
+            const inv = await res.json();
+            const tbody = document.querySelector('#inventoryTable tbody');
+            if (!inv.length) { tbody.innerHTML = '<tr><td colspan="5">No data</td></tr>'; return; }
+            tbody.innerHTML = inv.map(i => `
+                <tr><td><strong>${i.sku}</strong></td><td>${i.on_hand}</td><td>${i.reserved}</td><td>${i.reorder_point}</td><td>${i.safety_stock}</td></tr>
+            `).join('');
+        } catch (e) { console.error(e); }
+    }
+
+    async function fetchAlerts() {
+        try {
+            const res = await fetch(`${API_BASE}/api/alerts?limit=10`);
+            const alerts = await res.json();
+            const tbody = document.querySelector('#alertsTable tbody');
+            if (!alerts.length) { tbody.innerHTML = '<tr><td colspan="4">No alerts</td></tr>'; return; }
+            tbody.innerHTML = alerts.map(a => `
+                <tr>
+                    <td><span class="severity-${a.severity}">${a.severity}</span></td>
+                    <td>${a.category}</td>
+                    <td>${a.message.length > 60 ? a.message.slice(0,60)+'…' : a.message}</td>
+                    <td style="font-size:0.7rem;">${new Date(a.created_at).toLocaleTimeString()}</td>
+                </tr>
+            `).join('');
+        } catch (e) { console.error(e); }
+    }
+
+    async function refreshAll() {
+        await Promise.all([fetchOrders(), fetchInventory(), fetchAlerts(), fetchIncidents()]);
+        document.getElementById('lastUpdate').innerHTML = `🕒 Last updated: ${new Date().toLocaleTimeString()}`;
+    }
+
+    async function placeOrder() {
+        const payload = {
+            customer_id: document.getElementById('customerId').value,
+            sku: document.getElementById('sku').value.trim(),
+            quantity: parseInt(document.getElementById('qty').value),
+            total_value: parseFloat(document.getElementById('value').value),
+            deadline: document.getElementById('deadline').value + 'T00:00:00Z'
+        };
+        try {
+            const res = await fetch(`${API_BASE}/orders`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error(await res.text());
+            const data = await res.json();
+            showToast(`Order placed: ${data.order_id.slice(0,8)}…`);
+            setTimeout(refreshAll, 1500);
+        } catch (e) { showToast(e.message, true); }
+    }
+
+    async function fireAlert() {
+        try {
+            const res = await fetch(`${API_BASE}/api/test/fire-alert`, { method: 'POST' });
+            if (!res.ok) throw new Error(await res.text());
+            showToast('🧠 AI agent triggered — watch the panel above');
+            setTimeout(refreshAll, 4000);  // give the LLM time to respond
+        } catch (e) { showToast(e.message, true); }
+    }
+
+    document.getElementById('refreshBtn').addEventListener('click', () => { refreshAll(); showToast('Refreshing'); });
+    document.getElementById('submitOrder').addEventListener('click', placeOrder);
+    document.getElementById('fireAlert').addEventListener('click', fireAlert);
+
+    refreshAll();
+    setInterval(refreshAll, 8000);
+</script>
+</body>
+</html>

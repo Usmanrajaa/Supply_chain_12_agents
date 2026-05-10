@@ -1,0 +1,117 @@
+x-app-base: &app-base
+  build: .
+  env_file: .env
+  depends_on:
+    redis:    { condition: service_healthy }
+    postgres: { condition: service_healthy }
+    neo4j:    { condition: service_healthy }
+    minio:    { condition: service_started }
+  restart: unless-stopped
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: supply_chain
+      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: supply_chain
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations/postgres:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supply_chain -d supply_chain"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  neo4j:
+    image: neo4j:5-community
+    environment:
+      NEO4J_AUTH: neo4j/changeme12
+      NEO4J_PLUGINS: '["apoc"]'
+    ports: ["7474:7474", "7687:7687"]
+    volumes: ["neo4j_data:/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports: ["9000:9000", "9001:9001"]
+    volumes: ["minio_data:/data"]
+
+  api:
+    <<: *app-base
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000
+    ports: ["8000:8000"]
+
+  orchestrator:
+    <<: *app-base
+    command: python -m agents.orchestrator.agent
+
+  inventory:
+    <<: *app-base
+    command: python -m agents.inventory.agent
+
+  vendor:
+    <<: *app-base
+    command: python -m agents.vendor.agent
+
+  production:
+    <<: *app-base
+    command: python -m agents.production.agent
+
+  logistics:
+    <<: *app-base
+    command: python -m agents.logistics.agent
+
+  customer_delivery:
+    <<: *app-base
+    command: python -m agents.customer_delivery.agent
+
+  approvals:
+    <<: *app-base
+    command: python -m agents.approvals.agent
+
+  monitoring:
+    <<: *app-base
+    command: python -m agents.monitoring.agent
+
+  issue_resolution:
+    <<: *app-base
+    command: python -m agents.issue_resolution.agent
+
+  forecasting:
+    <<: *app-base
+    command: python -m agents.forecasting.agent
+
+  reporting:
+    <<: *app-base
+    command: python -m agents.reporting.agent
+
+  teams:
+    <<: *app-base
+    command: python -m agents.teams.agent
+
+volumes:
+  redis_data:
+  postgres_data:
+  neo4j_data:
+  minio_data:
