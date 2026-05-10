@@ -9,6 +9,9 @@
 **Multi‑agent supply chain orchestration** – event‑driven, fully containerised, and ready to demo. Built with Python 3.11, FastAPI, LangGraph, OpenAI (or Groq/OpenRouter), and Redis Streams.
 
 ---
+<img width="1805" height="878" alt="image" src="https://github.com/user-attachments/assets/7d8bdd13-7d2d-4bdb-b131-4fdde1765e7d" />
+<img width="1867" height="790" alt="image" src="https://github.com/user-attachments/assets/6f8f1fd4-1005-4b1c-9238-07f41e85caf3" />
+
 
 ## 🚀 Quick start (Windows / PowerShell)
 
